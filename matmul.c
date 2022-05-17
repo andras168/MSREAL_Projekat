@@ -58,6 +58,7 @@ struct file_operations my_fops =
 };
 
 
+
 int matmul_open(struct inode *pinode, struct file *pfile) 
 {
 		printk(KERN_INFO "Succesfully opened file\n");
@@ -108,6 +109,7 @@ ssize_t matmul_write(struct file *pfile, const char __user *buffer, size_t lengt
 
 	if(ret==3) //three parameters parsed in sscanf
 	{
+		printk(KERN_INFO "Inside if.");
 		if(n>=0 && n<=6)
 		{
 			matrix_dim_n = n;
@@ -119,7 +121,7 @@ ssize_t matmul_write(struct file *pfile, const char __user *buffer, size_t lengt
 		if(m>=0 && m<=6)
 		{
 			matrix_dim_m = m;
-			printk(KERN_INFO "Succesfully wrote value %d in position %d\n", m, 1); 
+			printk(KERN_INFO "Succesfully wrote value %d in position %d\n", m, 2); 
 		} else {
 			printk(KERN_WARNING "Dimension m should be between 0 and 6\n");
 		}
@@ -127,7 +129,7 @@ ssize_t matmul_write(struct file *pfile, const char __user *buffer, size_t lengt
 		if (p>=0 && p<=6)
 		{
 			matrix_dim_p = p;
-			printk(KERN_INFO "Succesfully wrote value %d in position %d\n", p, 1); 
+			printk(KERN_INFO "Succesfully wrote value %d in position %d\n", p, 3); 
 		} else {
 			printk(KERN_WARNING "Dimension p should be between 0 and 6\n");
 		}
@@ -137,60 +139,60 @@ ssize_t matmul_write(struct file *pfile, const char __user *buffer, size_t lengt
 	return length;
 }
 
-static int __init matmul_init(void)
+static int __init matmul_init ( void )
 {
-   int ret = 0;
+	int ret = 0 ;
+	ret = alloc_chrdev_region(&my_dev_id, 0 , 1 , "matmul" );
+	if (ret){
+		printk(KERN_ERR "failed to register char device\n" );
+		return ret;
+	}
+	printk(KERN_INFO "char device region allocated\n" );
 
-	//Initialize array
+	my_class = class_create(THIS_MODULE, "matmul_class" );
+	if (my_class == NULL ){
+		printk(KERN_ERR "failed to create class\n" );
+		goto fail_0;
+	}
+	printk(KERN_INFO "class created\n" );
 
-   ret = alloc_chrdev_region(&my_dev_id, 0, 1, DRIVER_NAME);
-   if (ret){
-      printk(KERN_ERR "failed to register char device\n");
-      return ret;
-   }
-   printk(KERN_INFO "char device region allocated\n");
+	my_device = device_create(my_class, NULL , my_dev_id, NULL ,"matmul" );
+	if (my_device == NULL ){
+		printk(KERN_ERR "failed to create device\n" );
+		goto fail_1;
+	}
+	printk(KERN_INFO "device created\n" );
 
-   my_class = class_create(THIS_MODULE, "matmul_class");
-   if (my_class == NULL){
-      printk(KERN_ERR "failed to create class\n");
-      goto fail_0;
-   }
-   printk(KERN_INFO "class created\n");
-   
-   my_device = device_create(my_class, NULL, my_dev_id, NULL, DRIVER_NAME);
-   if (my_device == NULL){
-      printk(KERN_ERR "failed to create device\n");
-      goto fail_1;
-   }
-   printk(KERN_INFO "device created\n");
-
-	my_cdev = cdev_alloc();	
+	my_cdev = cdev_alloc();
 	my_cdev->ops = &my_fops;
 	my_cdev->owner = THIS_MODULE;
-	ret = cdev_add(my_cdev, my_dev_id, 1);
+	ret = cdev_add(my_cdev, my_dev_id, 1 );
 	if (ret)
 	{
-      printk(KERN_ERR "failed to add cdev\n");
+		printk(KERN_ERR "failed to add cdev\n" );
 		goto fail_2;
 	}
-   printk(KERN_INFO "cdev added\n");
-   printk(KERN_INFO "Hello world\n");
-
-  //return platform_driver_register(&led_driver);
-
-   fail_2:
-      device_destroy(my_class, my_dev_id);
-   fail_1:
-      class_destroy(my_class);
-   fail_0:
-      unregister_chrdev_region(my_dev_id, 1);
-   return -1;
+	printk(KERN_INFO "cdev added\n" );
+	printk(KERN_INFO "Hello world\n" );
+	return 0 ;
+	
+	fail_2:
+		device_destroy(my_class, my_dev_id);
+	fail_1:
+		class_destroy(my_class);
+	fail_0:
+		unregister_chrdev_region(my_dev_id, 1 );
+	return -1 ;
 }
 
-static void __exit matmul_end(void)
+static void __exit matmul_exit ( void )
 {
-printk(KERN_INFO "Matmul removed.\n");
+	cdev_del(my_cdev);
+	device_destroy(my_class, my_dev_id);
+	class_destroy(my_class);
+	unregister_chrdev_region(my_dev_id, 1 );
+	printk(KERN_INFO "Goodbye, cruel world\n" );
 }
 
-module_init(matmul_start);
-module_exit(matmul_end);
+module_init(matmul_init);
+module_exit(matmul_exit);
