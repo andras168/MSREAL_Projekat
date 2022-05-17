@@ -1,6 +1,6 @@
+#include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
-#include <linux/init.h>
 
 #include <linux/of_address.h>
 #include <linux/of_device.h>
@@ -35,11 +35,12 @@ static struct cdev *my_cdev;
 int matrix_dim_n, matrix_dim_m, matrix_dim_p;
 int pos = 0;
 int endRead = 0;
+int storage[10];
 
-int storage_open(struct inode *pinode, struct file *pfile);
-int storage_close(struct inode *pinode, struct file *pfile);
-ssize_t storage_read(struct file *pfile, char __user *buffer, size_t length, loff_t *offset);
-ssize_t storage_write(struct file *pfile, const char __user *buffer, size_t length, loff_t *offset);
+int matmul_open(struct inode *pinode, struct file *pfile);
+int matmul_close(struct inode *pinode, struct file *pfile);
+ssize_t matmul_read(struct file *pfile, char __user *buffer, size_t length, loff_t *offset);
+ssize_t matmul_write(struct file *pfile, const char __user *buffer, size_t length, loff_t *offset);
 
 struct file_operations my_fops =
 {
@@ -99,25 +100,26 @@ ssize_t matmul_write(struct file *pfile, const char __user *buffer, size_t lengt
 
 	ret = sscanf(buff,"%d,%d,%d",&n,&m,&p);
 
-	if(ret==3)//three parameters parsed in sscanf
+	if(ret==3) //three parameters parsed in sscanf
 	{
 		if(n>=0 && n<=6)
 		{
-			matrix_dim_n = n; 
+			matrix_dim_n = n;
 			printk(KERN_INFO "Succesfully wrote value %d in position %d\n", n, 1); 
 		} else {
 			printk(KERN_WARNING "Dimension n should be between 0 and 6\n");
 		}
 		
-		if(m >= 0 && m <= 6)
+		if(m>=0 && m<=6)
 		{
-			matrix_dim_m = m; 
+			matrix_dim_m = m;
 			printk(KERN_INFO "Succesfully wrote value %d in position %d\n", m, 1); 
 		} else {
 			printk(KERN_WARNING "Dimension m should be between 0 and 6\n");
 		}
 		
-		if (p >= 0 && p <= 6){
+		if (p>=0 && p<=6)
+		{
 			matrix_dim_p = p;
 			printk(KERN_INFO "Succesfully wrote value %d in position %d\n", p, 1); 
 		} else {
@@ -128,3 +130,18 @@ ssize_t matmul_write(struct file *pfile, const char __user *buffer, size_t lengt
 	}
 	return length;
 }
+
+static int __init matmul_start(void)
+{
+	printk(KERN_INFO "Loading matmul module...\n");
+	printk(KERN_INFO "Matmul loaded.\n");
+return 0;
+}
+
+static void __exit matmul_end(void)
+{
+printk(KERN_INFO "Matmul removed.\n");
+}
+
+module_init(matmul_start);
+module_exit(matmul_end);
