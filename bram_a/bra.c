@@ -59,7 +59,8 @@ struct file_operations my_fops =
 	.release = bra_close,
 };
 
-static struct of_device_id bra_of_match[] = {
+static struct of_device_id bra_of_match[] =
+{
   { .compatible = "bra_gpio", },
   { /* end of list */ },
 };
@@ -173,11 +174,14 @@ ssize_t bra_write(struct file *pfile, const char __user *buffer, size_t length, 
   int string_to_int = 0;
 
   /*-----------------While variables---------------*/
-  char copy[100];
-  int i,j = 0;
+  //char copy[100];
+  //int i,j = 0;
   char matrix_input[100];
-  char s[2] = ";"; 
-  char m[2] = ",";
+  char *pm = matrix_input;
+  char *found;
+  const char s[2] = ";"; 
+  //const char m[2] = ",";
+  char *token;
   /*-----------------------------------------------*/
 
   ret = copy_from_user(buff, buffer, length);
@@ -191,34 +195,19 @@ ssize_t bra_write(struct file *pfile, const char __user *buffer, size_t length, 
  
   ret = kstrtoint(matrix_input,0,&string_to_int);
   
+ 
 
   if(ret != 0) {	
  
 	printk(KERN_INFO "This is in the buffer: %s\n", matrix_input);
-
-	while (matrix_input != '\0') {
-
-		printk(KERN_INFO "Entered while. Brace yourselves!");
-
-		if(strcmp(matrix_input, s) == 0) {
-			i++;
-			printk(KERN_INFO "Incremented i.");
-		} else if(strcmp(matrix_input,m) == 0) {
-			j++;
-			printk(KERN_INFO "Incremented j.");
-		} else {
-			strncat(copy, matrix_input, 1);	
-		}
-			//matrix_input++;
-	} //while 
-			
-			printk(KERN_INFO "\n\n%s", copy);
-			//return 0; //ostaje u while-u sa i bez return 0
-  }
+	while((found = strsep(&pm,s)) != NULL) {
+		printk(KERN_INFO "%s\n",found);
+	}	
 	
+
+  }
 	return length;
 }
-
 
 // # init + exit # 
 
