@@ -42,6 +42,10 @@ int matrix_dim_n, matrix_dim_m, matrix_dim_p;
 int pos = 0;
 int endRead = 0;
 int storage[10];
+static struct matmul_info *mp = NULL;
+
+static int matmul_probe(struct platform_device *pdev);
+static int matmul_remove(struct platform_device *pdev);
 
 int matmul_open(struct inode *pinode, struct file *pfile);
 int matmul_close(struct inode *pinode, struct file *pfile);
@@ -57,7 +61,25 @@ struct file_operations my_fops =
 	.release = matmul_close,
 };
 
+static struct of_device_id matmul_of_match[] =
+{
+  { .compatible = "bram_gpio",
+    .compatible = "matmul_gpio",
+    .compatible = "xlnx,matrix-multiplier", },
+  { /* end of list */ },
+};
 
+static struct platform_driver matmul_driver = {
+  .driver = {
+    .name = DRIVER_NAME,
+    .owner = THIS_MODULE,
+    .of_match_table	= matmul_of_match,
+  },
+  .probe		= matmul_probe,
+  .remove		= matmul_remove,
+};
+
+MODULE_DEVICE_TABLE(of, matmul_of_match);
 
 int matmul_open(struct inode *pinode, struct file *pfile) 
 {
@@ -71,10 +93,80 @@ int matmul_close(struct inode *pinode, struct file *pfile)
 		return 0;
 }
 
+/*--------------------------- PROBE & REMOVE --------------------------------------*/
+
+static int matmul_probe(struct platform_device *pdev)
+{
+  struct resource *r_mem;
+  int rc = 0;
+  printk(KERN_INFO "Probing...\n");
+  // Get physical register adress space from device tree
+  r_mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+
+ 
+  if (!r_mem) {
+    printk(KERN_ALERT "Failed to get resource!\n");
+    return -ENODEV;
+  }
+  // Get memory for structure bra_info
+  mp = (struct matmul_info *) kmalloc(sizeof(struct matmul_info), GFP_KERNEL);
+  if (!mp) {
+    printk(KERN_ALERT "Could not allocate matmul device!\n");
+    return -ENOMEM;
+  }
+  // Put physical adresses in matmul_info structure
+  mp->mem_start = r_mem->start;
+  mp->mem_end = r_mem->end;
+
+  // Reserve that memory space for this driver
+  if (!request_mem_region(mp->mem_start,mp->mem_end - mp->mem_start + 1, DRIVER_NAME))
+  {
+    printk(KERN_ALERT "Could not lock memory region at %p\n.",(void *)mp->mem_start);
+    rc = -EBUSY;
+    goto error1;
+  }
+
+  // Remap physical to virtual adresses
+  mp->base_addr = ioremap(mp->mem_start, mp->mem_end - mp->mem_start + 1);
+  if (!mp->base_addr) {
+    printk(KERN_ALERT "Could not allocate memory!\n");
+    rc = -EIO;
+    goto error2;
+  }
+
+  if(mp->mem_start == r_mem->start) {
+  	printk(KERN_ALERT "mem_start == r_mem");
+  } else {
+  	printk(KERN_ALERT "mem_start != r_mem");
+  }
+
+  printk(KERN_WARNING "Matmul platform driver registered.\n");
+  return 0;//ALL OK
+
+error2:
+  release_mem_region(mp -> mem_start, mp -> mem_end - mp -> mem_start + 1);
+error1:
+  return rc;
+}
+
+static int matmul_remove(struct platform_device *pdev)
+{
+  printk(KERN_WARNING "Matmul platform driver removed!\n");
+  iowrite32(0, mp->base_addr);
+  printk(KERN_INFO "Matmul remove in process.");
+  iounmap(mp->base_addr);
+  release_mem_region(mp->mem_start, mp->mem_end - mp->mem_start + 1);
+  kfree(mp);
+  printk(KERN_INFO "Matmul driver removed.");
+  return 0;
+}
+
 ssize_t matmul_read(struct file *pfile, char __user *buffer, size_t length, loff_t *offset) 
 {
 	int ret;
 	char buff[BUFF_SIZE];
+	uint32_t matrixA_val = 0;
+//	uint32_t matrixB_val = 0;
 	long int len;
 	if (endRead){
 		endRead = 0;
@@ -82,14 +174,11 @@ ssize_t matmul_read(struct file *pfile, char __user *buffer, size_t length, loff
 		printk(KERN_INFO "Succesfully read from file\n");
 		return 0;
 	}
-	len = scnprintf(buff,BUFF_SIZE , "%d ", storage[pos]);
+//	len = scnprintf(buff,BUFF_SIZE , "%d ", storage[pos]);
 	ret = copy_to_user(buffer, buff, len);
-	if(ret)
-		return -EFAULT;
-	pos ++;
-	if (pos == 10) {
-		endRead = 1;
-	}
+	matrixA_val = ioread32(mp->base_addr);
+	printk(KERN_INFO "Matrix A: %d", matrixA_val);
+	endRead = 1;
 	return len;
 }
 
@@ -109,11 +198,11 @@ ssize_t matmul_write(struct file *pfile, const char __user *buffer, size_t lengt
 
 	if(ret==3) //three parameters parsed in sscanf
 	{
-		printk(KERN_INFO "Inside if.");
+//		printk(KERN_INFO "Inside if.");
 		if(n>=0 && n<=6)
 		{
 			matrix_dim_n = n;
-			printk(KERN_INFO "Succesfully wrote value %d in position %d\n", n, 1); 
+			printk(KERN_INFO "Dimension N: %d\n", n); 
 		} else {
 			printk(KERN_WARNING "Dimension n should be between 0 and 6\n");
 		}
@@ -121,7 +210,7 @@ ssize_t matmul_write(struct file *pfile, const char __user *buffer, size_t lengt
 		if(m>=0 && m<=6)
 		{
 			matrix_dim_m = m;
-			printk(KERN_INFO "Succesfully wrote value %d in position %d\n", m, 2); 
+			printk(KERN_INFO "Dimension M: %d\n", m);
 		} else {
 			printk(KERN_WARNING "Dimension m should be between 0 and 6\n");
 		}
@@ -129,7 +218,7 @@ ssize_t matmul_write(struct file *pfile, const char __user *buffer, size_t lengt
 		if (p>=0 && p<=6)
 		{
 			matrix_dim_p = p;
-			printk(KERN_INFO "Succesfully wrote value %d in position %d\n", p, 3); 
+			printk(KERN_INFO "Dimension P:  %d\n", p); 
 		} else {
 			printk(KERN_WARNING "Dimension p should be between 0 and 6\n");
 		}
@@ -161,20 +250,23 @@ static int __init matmul_init ( void )
 		printk(KERN_ERR "failed to create device\n" );
 		goto fail_1;
 	}
-	printk(KERN_INFO "device created\n" );
+	printk(KERN_INFO "Device created\n" );
 
 	my_cdev = cdev_alloc();
 	my_cdev->ops = &my_fops;
 	my_cdev->owner = THIS_MODULE;
 	ret = cdev_add(my_cdev, my_dev_id, 1 );
+	
 	if (ret)
 	{
 		printk(KERN_ERR "failed to add cdev\n" );
 		goto fail_2;
 	}
-	printk(KERN_INFO "cdev added\n" );
-	printk(KERN_INFO "Hello world\n" );
-	return 0 ;
+	
+	printk(KERN_INFO "Cdev added\n" );
+	//printk(KERN_INFO "Hello world\n" );
+	
+	return platform_driver_register(&matmul_driver);
 	
 	fail_2:
 		device_destroy(my_class, my_dev_id);
@@ -187,11 +279,12 @@ static int __init matmul_init ( void )
 
 static void __exit matmul_exit ( void )
 {
-	cdev_del(my_cdev);
+	platform_driver_unregister(&matmul_driver);
+        cdev_del(my_cdev);
 	device_destroy(my_class, my_dev_id);
 	class_destroy(my_class);
 	unregister_chrdev_region(my_dev_id, 1 );
-	printk(KERN_INFO "Goodbye, cruel world\n" );
+	printk(KERN_INFO "Matmul exit.\n" );
 }
 
 module_init(matmul_init);
