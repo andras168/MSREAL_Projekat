@@ -65,7 +65,7 @@ static struct of_device_id matmul_of_match[] =
 {
   { .compatible = "bram_gpio",
     .compatible = "matmul_gpio",
-    .compatible = "xlnx,matrix-multiplier", },
+    .compatible = "xlnx,matrix-multiplier",},
   { /* end of list */ },
 };
 
@@ -83,13 +83,13 @@ MODULE_DEVICE_TABLE(of, matmul_of_match);
 
 int matmul_open(struct inode *pinode, struct file *pfile) 
 {
-		printk(KERN_INFO "Succesfully opened file\n");
+		printk(KERN_INFO "Succesfully opened file.\n");
 		return 0;
 }
 
 int matmul_close(struct inode *pinode, struct file *pfile) 
 {
-		printk(KERN_INFO "Succesfully closed file\n");
+		printk(KERN_INFO "Succesfully closed file.\n");
 		return 0;
 }
 
@@ -165,8 +165,8 @@ ssize_t matmul_read(struct file *pfile, char __user *buffer, size_t length, loff
 {
 	int ret;
 	char buff[BUFF_SIZE];
-	uint32_t matrixA_val = 0;
-//	uint32_t matrixB_val = 0;
+        uint32_t m,n,p,ready,start = 0;
+	
 	long int len;
 	if (endRead){
 		endRead = 0;
@@ -176,8 +176,13 @@ ssize_t matmul_read(struct file *pfile, char __user *buffer, size_t length, loff
 	}
 //	len = scnprintf(buff,BUFF_SIZE , "%d ", storage[pos]);
 	ret = copy_to_user(buffer, buff, len);
-	matrixA_val = ioread32(mp->base_addr);
-	printk(KERN_INFO "Matrix A: %d", matrixA_val);
+	//matrixA_val = ioread32(mp->base_addr+8);
+	n = ioread32(mp->base_addr+8);	
+	m = ioread32(mp->base_addr+12);
+	p = ioread32(mp->base_addr+16);
+	ready = ioread32(mp->base_addr);
+	start = ioread32(mp->base_addr+4);
+	printk(KERN_INFO "ready=%u,start=%u,n=%u,m=%u,p=%u", ready,start,n,m,p);
 	endRead = 1;
 	return len;
 }
@@ -186,45 +191,70 @@ ssize_t matmul_read(struct file *pfile, char __user *buffer, size_t length, loff
 ssize_t matmul_write(struct file *pfile, const char __user *buffer, size_t length, loff_t *offset) 
 {
 	char buff[BUFF_SIZE];
-	int n, m, p;
+	int n, m, p, ready, start;
 	int ret;
 
 	ret = copy_from_user(buff, buffer, length);
 	if(ret)
 		return -EFAULT;
 	buff[length-1] = '\0';
-
-	ret = sscanf(buff,"%d,%d,%d",&n,&m,&p);
+	
+	if(strstr(buff,"start=") != NULL ) {
+		ret = sscanf(buff, "start= %d", &n);
+//		printk(KERN_INFO "RET= %d",ret);
+	} else if(strstr(buff,"dim=") != NULL) {
+		ret = sscanf(buff,"dim= %d,%d,%d",&n,&m,&p); //ret = 3
+//		printk(KERN_INFO "RET = %d", ret);
+	}
 
 	if(ret==3) //three parameters parsed in sscanf
 	{
-//		printk(KERN_INFO "Inside if.");
-		if(n>=0 && n<=6)
+		if(n >= 1 && n <= 7)
 		{
 			matrix_dim_n = n;
-			printk(KERN_INFO "Dimension N: %d\n", n); 
+			printk(KERN_INFO "Dimension N: %d\n", n);
+			iowrite32((u32)n, mp->base_addr + 8);
 		} else {
-			printk(KERN_WARNING "Dimension n should be between 0 and 6\n");
+			printk(KERN_WARNING "Dimension n should be between 1 and 7\n");
 		}
 		
-		if(m>=0 && m<=6)
+		if(m >= 1 && m <= 7)
 		{
 			matrix_dim_m = m;
 			printk(KERN_INFO "Dimension M: %d\n", m);
+			iowrite32((u32)m, mp->base_addr+12);
 		} else {
-			printk(KERN_WARNING "Dimension m should be between 0 and 6\n");
+			printk(KERN_WARNING "Dimension m should be between 1 and 7\n");
 		}
 		
-		if (p>=0 && p<=6)
+		if (p >= 1 && p <= 7)
 		{
 			matrix_dim_p = p;
-			printk(KERN_INFO "Dimension P:  %d\n", p); 
+			printk(KERN_INFO "Dimension P: %d\n", p); 
+			iowrite32((u32)p, mp->base_addr+16);
 		} else {
-			printk(KERN_WARNING "Dimension p should be between 0 and 6\n");
+			printk(KERN_WARNING "Dimension p should be between 1 and 7\n");
 		}
 		
 		
-	}
+	} else if(ret == 1) {
+		switch(n) {
+			case 0:
+				iowrite32((u32)n, mp->base_addr+4);
+				printk(KERN_INFO "Matmul stoped");
+				printk(KERN_INFO "N is equal to: %d",n);
+				break;
+			case 1:
+				iowrite32((u32)n, mp->base_addr+4);
+				printk(KERN_INFO "Matmul started");
+				printk(KERN_INFO "N is equal to: %d",n);
+				break;
+			default:
+				printk(KERN_WARNING "Wrong parameter for Start");
+				break;
+		}	
+	}	
+
 	return length;
 }
 
