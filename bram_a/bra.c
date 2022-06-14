@@ -165,8 +165,27 @@ int bram_close(struct inode *pinode, struct file *pfile)
 }
 ssize_t bram_read(struct file *pfile, char __user *buffer, size_t length, loff_t *offset) 
 {
-	printk("Succefully read from bram_a. \n");
-	return 0;
+	int i;
+	int ret;
+	char buff[BUFF_SIZE];
+        uint32_t matrix;
+	
+	long int len;
+	if (endRead){
+		endRead = 0;
+		printk(KERN_INFO "Succesfully read from file\n");
+		return 0;
+	}
+	
+	ret = copy_to_user(buffer, buff, len);	
+	
+	for(i=0; i <= 8; i++) {
+		matrix = ioread32(bp->base_addr+(4*i));
+		printk(KERN_INFO "matrix[%d]= %u",i ,matrix);
+	}
+
+	endRead = 1;
+	return len;
 }
 
 ssize_t bram_write(struct file *pfile, const char __user *buffer, size_t length, loff_t *offset) {
@@ -174,13 +193,14 @@ ssize_t bram_write(struct file *pfile, const char __user *buffer, size_t length,
   char buff[BUFF_SIZE];
   int ret = 0;
   int string_to_int = 0; 
+  
   /*----------------- While variables ---------------*/
   char copy[100];
   int i = 0;
   int j = 0;
   int mat[10][10];
 
-  uint32_t iwrite;
+  //uint32_t iwrite;
 
   char matrix_input[100];
   char *ch;
@@ -230,13 +250,13 @@ ssize_t bram_write(struct file *pfile, const char __user *buffer, size_t length,
   }
 
 	printk(KERN_INFO "Number string: \n%s\n", copy);
-	printk(KERN_INFO "\nNumber of rows: %d\n",i);
-	printk(KERN_INFO "\nNumber of columns: %d\n",(j+i)/i);
+	printk(KERN_INFO "Number of rows: %d\n",i);
+	printk(KERN_INFO "Number of columns: %d\n",(j+i)/i);
 
 
-	for(c = 0; c < j+i; c++) {
-		printk(KERN_INFO "%d \t",arr[c]);
-	}
+//	for(c = 0; c < j+i; c++) {
+//		printk(KERN_INFO "%d \t",arr[c]);
+//	}
 
 	printk(KERN_INFO "\n\n Matrix  \n\n");
 
@@ -251,25 +271,20 @@ ssize_t bram_write(struct file *pfile, const char __user *buffer, size_t length,
 	for(e = 0; e < i; e++) {
 		for(f = 0; f < ((j+i)/i); f++) {
 			printk(KERN_INFO "%d\t",mat[e][f]);
-		//	string_to_ull = mat[e][f];
-		//	kstrtoull (string_to_ull, 0, &iwrite);
-			iowrite32((u32)mat[e][f], bp -> base_addr);
-			printk(KERN_INFO "Succesfully wrote value %32u", (u32)mat[e][f]); 
+			if(e == 0) {	
+				iowrite32((u32)mat[e][f], bp -> base_addr+4*f);
+			} else {
+				iowrite32((u32)mat[e][f], bp -> base_addr+((4*(j+i)/i*e)+(4*f)));	
+			}	
+		
 		}
 		printk(KERN_INFO "\n\n");
 	}
 
   }
-	//write32((u32)iwrite, bp -> base_addr + 4);
-	//intk(KERN_INFO "Succesfully wrote value %llu",iwrite); 
 	return length;
 } 
 
-	/*printk(KERN_INFO "This is in the buffer: %s\n", matrix_input);
-	while((found = strsep(&pm,s)) != NULL) {
-		printk(KERN_INFO "%s\n",found);
-	}//while*/
-	
 /*------------------------------ END OF MATRIX PART -----------------------------*/
 
 static int __init bram_init(void)
