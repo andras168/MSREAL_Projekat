@@ -194,23 +194,20 @@ ssize_t bram_write(struct file *pfile, const char __user *buffer, size_t length,
   int ret = 0;
   int string_to_int = 0; 
   
-  /*----------------- While variables ---------------*/
+  /*--------------------------------- While variables ----------------------------------*/
   char copy[100];
   int i = 0;
   int j = 0;
   int mat[10][10];
-
-  //uint32_t iwrite;
-
+  
   char matrix_input[100];
   char *ch;
-  //int *string_to_ull;
   int arr[50]; 
   int x = 0;
   int y = 0;
   int a,b,c,d,e,f;
   ch = matrix_input;
-  /*-------------------------------------------------*/
+  /*------------------------------------------------------------------------------------*/
 
   ret = copy_from_user(buff, buffer, length);
   if(ret){
@@ -240,7 +237,6 @@ ssize_t bram_write(struct file *pfile, const char __user *buffer, size_t length,
 //		printk(KERN_INFO "Incremented j: %d\n", j);
 
 	} else {
-	//printk(KERN_INFO "AKLSJDALSKJDÉLKASJDÉLASKDJ");
 		strncat(copy, ch, 2);
 		y = kstrtoint(ch,0,&x);
 		printk(KERN_INFO "CH = %c\n", *ch);
@@ -249,16 +245,11 @@ ssize_t bram_write(struct file *pfile, const char __user *buffer, size_t length,
 	ch++;
   }
 
-	printk(KERN_INFO "Number string: \n%s\n", copy);
+	printk(KERN_INFO "Number string: %s\n", copy);
 	printk(KERN_INFO "Number of rows: %d\n",i);
 	printk(KERN_INFO "Number of columns: %d\n",(j+i)/i);
 
-
-//	for(c = 0; c < j+i; c++) {
-//		printk(KERN_INFO "%d \t",arr[c]);
-//	}
-
-	printk(KERN_INFO "\n\n Matrix  \n\n");
+	printk(KERN_INFO "\nMatrix\n");
 
 	d = 0;
 	for(a = 0; a < i; a++) {
@@ -323,7 +314,6 @@ static int __init bram_init(void)
 	}
 	printk(KERN_INFO "Cdev added.\n");
 
-	//printk(KERN_INFO "bra world\n");
 	return platform_driver_register(&bram_driver);
 
 	fail_2:
