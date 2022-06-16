@@ -198,14 +198,16 @@ ssize_t bram_write(struct file *pfile, const char __user *buffer, size_t length,
   char copy[100];
   int i = 0;
   int j = 0;
+  int k = 0;
   int mat[10][10];
-  
+  int q = 0;
   char matrix_input[100];
   char *ch;
   int arr[50]; 
-  int x = 0;
-  int y = 0;
-  int a,b,c,d,e,f;
+  int x;
+  //int y = 0;
+  int c;
+  int a,b,d,e,f;
   ch = matrix_input;
   /*------------------------------------------------------------------------------------*/
 
@@ -226,46 +228,57 @@ ssize_t bram_write(struct file *pfile, const char __user *buffer, size_t length,
 /*------------------------------ STRING TO ARRAY ---------------------------------*/
  
   printk(KERN_INFO "Matrix input: %s\n", matrix_input); 
-  while(*ch != '\0') {
-//	printk(KERN_INFO "Entered while: %s\n", ch);
 
-	if(*ch == ';'){
-		i++;
-//		printk(KERN_INFO "Incremented i: %d\n", i);
-	} else if (*ch == ',') {
-		j++;
-//		printk(KERN_INFO "Incremented j: %d\n", j);
+	for(i = 0; matrix_input[i]; i++) {
+		x = kstrtoint(copy, 0, &c);
+	
+		if(c > 4096)
+			printk(KERN_ERR "WARNING values beyond 4096 are not permitted\n"); 
+	
+		if(matrix_input[i]==',') {
 
-	} else {
-		strncat(copy, ch, 2);
-		y = kstrtoint(ch,0,&x);
-		printk(KERN_INFO "CH = %c\n", *ch);
-		arr[i+j] = *ch;
+			arr[j+k] = c;
+			strcpy(copy, "");
+			j++;
+		}
+		else if (matrix_input[i]==';') {
+			arr[j+k] = c;
+			strcpy(copy, "");
+			k++;
+		} else {
+			strncat(copy,&matrix_input[i],1);	
+		}
+			
 	}
-	ch++;
-  }
+	
+	
+	printk(KERN_INFO "\n\n Here are the values: \n");
+	
+	for(q=0; q < j+k; q++) {
+		printk(KERN_INFO "%d\t",arr[q]);
+	}	
 
-	printk(KERN_INFO "Number string: %s\n", copy);
-	printk(KERN_INFO "Number of rows: %d\n",i);
-	printk(KERN_INFO "Number of columns: %d\n",(j+i)/i);
+
+	printk(KERN_INFO "Number of rows: %d\n",k);
+	printk(KERN_INFO "Number of columns: %d\n",(j+k)/k);
 
 	printk(KERN_INFO "\nMatrix\n");
 
 	d = 0;
-	for(a = 0; a < i; a++) {
-		for(b = 0; b < ((j+i)/i); b++){
-			mat[a][b] = arr[d]-48;
+	for(a = 0; a < k; a++) {
+		for(b = 0; b < ((j+k)/k); b++){
+			mat[a][b] = arr[d];
 			d++;
 		} 
 	}
 
-	for(e = 0; e < i; e++) {
-		for(f = 0; f < ((j+i)/i); f++) {
+	for(e = 0; e < k; e++) {
+		for(f = 0; f < ((j+k)/k); f++) {
 			printk(KERN_INFO "%d\t",mat[e][f]);
 			if(e == 0) {	
 				iowrite32((u32)mat[e][f], bp -> base_addr+4*f);
 			} else {
-				iowrite32((u32)mat[e][f], bp -> base_addr+((4*(j+i)/i*e)+(4*f)));	
+				iowrite32((u32)mat[e][f], bp -> base_addr+((4*(j+k)/k*e)+(4*f)));	
 			}	
 		
 		}
@@ -283,7 +296,7 @@ static int __init bram_init(void)
 	int ret = 0;
 	ret = alloc_chrdev_region(&my_dev_id, 0, 1, "bra");
 	if (ret){
-		printk(KERN_ERR "failed to register char device\n");
+		printk(KERN_ERR "Failed to register char device.\n");
 		return ret;
 	}
 	printk(KERN_INFO "Char device region allocated.\n");
@@ -332,7 +345,7 @@ static void __exit bram_exit(void)
 	device_destroy(my_class, my_dev_id);
 	class_destroy(my_class);
 	unregister_chrdev_region(my_dev_id,1);
-	printk(KERN_INFO "Bram_a exit.\n");
+	printk(KERN_INFO "bra removed!\n");
 }
 
 module_init(bram_init);
