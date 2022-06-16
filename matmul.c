@@ -38,6 +38,7 @@ static struct class *my_class;
 static struct device *my_device;
 static struct cdev *my_cdev;
 
+int flag_dim = 0;
 int matrix_dim_n, matrix_dim_m, matrix_dim_p;
 int pos = 0;
 int endRead = 0;
@@ -135,9 +136,9 @@ static int matmul_probe(struct platform_device *pdev)
   }
 
   if(mp->mem_start == r_mem->start) {
-  	printk(KERN_ALERT "mem_start == r_mem");
+  	printk(KERN_NOTICE "mem_start == r_mem");
   } else {
-  	printk(KERN_ALERT "mem_start != r_mem");
+  	printk(KERN_NOTICE "mem_start != r_mem");
   }
 
   printk(KERN_WARNING "Matmul platform driver registered.\n");
@@ -174,14 +175,14 @@ ssize_t matmul_read(struct file *pfile, char __user *buffer, size_t length, loff
 		printk(KERN_INFO "Succesfully read from file\n");
 		return 0;
 	}
-//	len = scnprintf(buff,BUFF_SIZE , "%d ", storage[pos]);
 	ret = copy_to_user(buffer, buff, len);
-	//matrixA_val = ioread32(mp->base_addr+8);
+
+	ready = ioread32(mp->base_addr);	
+	start = ioread32(mp->base_addr+4);
 	n = ioread32(mp->base_addr+8);	
 	m = ioread32(mp->base_addr+12);
 	p = ioread32(mp->base_addr+16);
-	ready = ioread32(mp->base_addr);
-	start = ioread32(mp->base_addr+4);
+
 	printk(KERN_INFO "ready=%u,start=%u,n=%u,m=%u,p=%u", ready,start,n,m,p);
 	endRead = 1;
 	return len;
@@ -190,32 +191,34 @@ ssize_t matmul_read(struct file *pfile, char __user *buffer, size_t length, loff
 
 ssize_t matmul_write(struct file *pfile, const char __user *buffer, size_t length, loff_t *offset) 
 {
+	
+//	int flag_dim = 0;
 	char buff[BUFF_SIZE];
-	int n, m, p, ready, start;
+	int n, m, p, start;
+	//int ready;
 	int ret;
-
+		
 	ret = copy_from_user(buff, buffer, length);
 	if(ret)
 		return -EFAULT;
 	buff[length-1] = '\0';
 	
 	if(strstr(buff,"start=") != NULL ) {
-		ret = sscanf(buff, "start= %d", &n);
-//		printk(KERN_INFO "RET= %d",ret);
+		ret = sscanf(buff, "start=%d", &start); //ret = 1
 	} else if(strstr(buff,"dim=") != NULL) {
-		ret = sscanf(buff,"dim= %d,%d,%d",&n,&m,&p); //ret = 3
-//		printk(KERN_INFO "RET = %d", ret);
+		ret = sscanf(buff,"dim=%d,%d,%d",&n,&m,&p); //ret = 3
 	}
 
 	if(ret==3) //three parameters parsed in sscanf
-	{
+	{  
+		flag_dim = 1;	
 		if(n >= 1 && n <= 7)
 		{
 			matrix_dim_n = n;
 			printk(KERN_INFO "Dimension N: %d\n", n);
 			iowrite32((u32)n, mp->base_addr + 8);
 		} else {
-			printk(KERN_WARNING "Dimension n should be between 1 and 7\n");
+			printk(KERN_ERR "Dimension N should be between 1 and 7\n");
 		}
 		
 		if(m >= 1 && m <= 7)
@@ -224,7 +227,7 @@ ssize_t matmul_write(struct file *pfile, const char __user *buffer, size_t lengt
 			printk(KERN_INFO "Dimension M: %d\n", m);
 			iowrite32((u32)m, mp->base_addr+12);
 		} else {
-			printk(KERN_WARNING "Dimension m should be between 1 and 7\n");
+			printk(KERN_ERR "Dimension M should be between 1 and 7\n");
 		}
 		
 		if (p >= 1 && p <= 7)
@@ -233,28 +236,33 @@ ssize_t matmul_write(struct file *pfile, const char __user *buffer, size_t lengt
 			printk(KERN_INFO "Dimension P: %d\n", p); 
 			iowrite32((u32)p, mp->base_addr+16);
 		} else {
-			printk(KERN_WARNING "Dimension p should be between 1 and 7\n");
-		}
-		
-		
-	} else if(ret == 1) {
-		switch(n) {
-			case 0:
-				iowrite32((u32)n, mp->base_addr+4);
-				printk(KERN_INFO "Matmul stoped");
-				printk(KERN_INFO "N is equal to: %d",n);
-				break;
-			case 1:
-				iowrite32((u32)n, mp->base_addr+4);
-				printk(KERN_INFO "Matmul started");
-				printk(KERN_INFO "N is equal to: %d",n);
-				break;
-			default:
-				printk(KERN_WARNING "Wrong parameter for Start");
-				break;
+			printk(KERN_ERR "Dimension P should be between 1 and 7\n");
 		}	
-	}	
 
+	} else if(ret == 1) {
+		if(flag_dim == 1) {	
+			switch(start) {
+				case 0:
+					iowrite32((u32)start, mp->base_addr+4);
+					printk(KERN_INFO "Matrix muliplication stopped.");
+					printk(KERN_WARNING "Start -> %d",start);
+					flag_dim = 0;
+					break;
+				case 1:
+					iowrite32((u32)start, mp->base_addr+4);
+					printk(KERN_INFO "Matrix multiplication started.");
+					printk(KERN_WARNING "Start -> %d",start);
+					break;
+				default:
+					printk(KERN_ERR "Wrong parameter for Start! (START = 1, STOP = 0)");
+					break;
+			}
+		} else if(flag_dim == 0) {
+			printk(KERN_ERR "Please specify the matrix dimensions first!");
+		}	
+
+	}	
+	
 	return length;
 }
 
@@ -263,24 +271,24 @@ static int __init matmul_init ( void )
 	int ret = 0 ;
 	ret = alloc_chrdev_region(&my_dev_id, 0 , 1 , "matmul" );
 	if (ret){
-		printk(KERN_ERR "failed to register char device\n" );
+		printk(KERN_ERR "Failed to register char device!\n" );
 		return ret;
 	}
-	printk(KERN_INFO "char device region allocated\n" );
+	printk(KERN_INFO "Char device region allocated.\n" );
 
 	my_class = class_create(THIS_MODULE, "matmul_class" );
 	if (my_class == NULL ){
-		printk(KERN_ERR "failed to create class\n" );
+		printk(KERN_ERR "Failed to create class!\n" );
 		goto fail_0;
 	}
-	printk(KERN_INFO "class created\n" );
+	printk(KERN_INFO "Class created.\n" );
 
 	my_device = device_create(my_class, NULL , my_dev_id, NULL ,"matmul" );
 	if (my_device == NULL ){
-		printk(KERN_ERR "failed to create device\n" );
+		printk(KERN_ERR "Failed to create device!\n" );
 		goto fail_1;
 	}
-	printk(KERN_INFO "Device created\n" );
+	printk(KERN_INFO "Device created.\n" );
 
 	my_cdev = cdev_alloc();
 	my_cdev->ops = &my_fops;
