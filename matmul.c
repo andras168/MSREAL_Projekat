@@ -1,6 +1,8 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/timer.h>
+#include <linux/jiffies.h>
 
 #include <linux/of_address.h>
 #include <linux/of_device.h>
@@ -26,7 +28,8 @@ MODULE_DESCRIPTION("MATRIX MULTIPLIER");
 #define DEVICE_NAME "matmul"
 #define DRIVER_NAME "matrix_multiplier"
 #define BUFF_SIZE 20
-
+#define TIMER_MS 5000
+ 
 struct matmul_info {
   unsigned long mem_start;
   unsigned long mem_end;
@@ -43,6 +46,7 @@ int matrix_dim_n, matrix_dim_m, matrix_dim_p;
 int pos = 0;
 int endRead = 0;
 int storage[10];
+uint32_t ready;
 static struct matmul_info *mp = NULL;
 
 static int matmul_probe(struct platform_device *pdev);
@@ -52,6 +56,9 @@ int matmul_open(struct inode *pinode, struct file *pfile);
 int matmul_close(struct inode *pinode, struct file *pfile);
 ssize_t matmul_read(struct file *pfile, char __user *buffer, size_t length, loff_t *offset);
 ssize_t matmul_write(struct file *pfile, const char __user *buffer, size_t length, loff_t *offset);
+
+void simple_timer_function(struct timer_list *);
+struct timer_list simple_timer;
 
 struct file_operations my_fops =
 {
@@ -81,6 +88,7 @@ static struct platform_driver matmul_driver = {
 };
 
 MODULE_DEVICE_TABLE(of, matmul_of_match);
+
 
 int matmul_open(struct inode *pinode, struct file *pfile) 
 {
@@ -162,6 +170,14 @@ static int matmul_remove(struct platform_device *pdev)
   return 0;
 }
 
+void simple_timer_function(struct timer_list *timer)
+{
+
+	ready = ioread32(mp->base_addr);
+	printk(KERN_INFO "Ready = %u", ready);
+	mod_timer (&simple_timer, jiffies + ( msecs_to_jiffies(TIMER_MS)));		
+}
+
 ssize_t matmul_read(struct file *pfile, char __user *buffer, size_t length, loff_t *offset) 
 {
 	int ret;
@@ -194,11 +210,10 @@ ssize_t matmul_write(struct file *pfile, const char __user *buffer, size_t lengt
 	
 	char buff[BUFF_SIZE];
 	int n, m, p, start;
-	//int ready;
 	int ret;		
 	uint32_t trig0 = 0;
 	uint32_t trig1 = 1;
-	char trigger[10] = "trigger";
+	
 	ret = copy_from_user(buff, buffer, length);
 	if(ret)
 		return -EFAULT;
@@ -211,7 +226,7 @@ ssize_t matmul_write(struct file *pfile, const char __user *buffer, size_t lengt
 		ret = sscanf(buff,"dim=%d,%d,%d",&n,&m,&p); //ret = 3
 	} else if(strstr(buff, "start=") != NULL) {
 		ret = sscanf(buff, "start=%d", &start);
-		printk(KERN_INFO "RET = %d", ret);
+//		printk(KERN_INFO "RET = %d", ret);
 	}
 
 	if(ret == 3) //three parameters parsed in sscanf
@@ -264,7 +279,7 @@ ssize_t matmul_write(struct file *pfile, const char __user *buffer, size_t lengt
 					printk(KERN_INFO "Trigger = %u", trig1);
 					iowrite32((u32)trig0, mp->base_addr+4);
 					printk(KERN_INFO "Trigger = %u", trig0);
-					printk(KERN_INFO "start= %d", start);
+//					printk(KERN_INFO "start= %d", start);
 					break;
 				default:
 					printk(KERN_ERR "Wrong parameter for Start! (START = 1, STOP = 0)");
@@ -280,7 +295,9 @@ ssize_t matmul_write(struct file *pfile, const char __user *buffer, size_t lengt
 }
 
 static int __init matmul_init ( void )
-{
+{	
+	
+
 	int ret;
  	ret = alloc_chrdev_region(&my_dev_id, 0 , 1 , "matmul" );
 	if (ret){
@@ -316,9 +333,15 @@ static int __init matmul_init ( void )
 	
 	printk(KERN_INFO "Cdev added\n" );
 	//printk(KERN_INFO "Hello world\n" );
-	
+
+        timer_setup(&simple_timer,simple_timer_function,0);
+        mod_timer(&simple_timer, jiffies + msecs_to_jiffies(TIMER_MS));
+
+
+
 	return platform_driver_register(&matmul_driver);
 	
+
 	fail_2:
 		device_destroy(my_class, my_dev_id);
 	fail_1:
@@ -327,7 +350,6 @@ static int __init matmul_init ( void )
 		unregister_chrdev_region(my_dev_id, 1 );
 	return -1 ;
 }
-
 static void __exit matmul_exit ( void )
 {
 	platform_driver_unregister(&matmul_driver);
@@ -335,6 +357,7 @@ static void __exit matmul_exit ( void )
 	device_destroy(my_class, my_dev_id);
 	class_destroy(my_class);
 	unregister_chrdev_region(my_dev_id, 1 );
+	del_timer(&simple_timer);
 	printk(KERN_INFO "Matmul exit.\n" );
 }
 
