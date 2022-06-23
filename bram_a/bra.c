@@ -55,6 +55,7 @@ static struct bram_info *bp = NULL;
 
 int endRead = 0;
 
+
 struct file_operations my_fops =
 {
 	.owner = THIS_MODULE,
@@ -179,7 +180,7 @@ ssize_t bram_read(struct file *pfile, char __user *buffer, size_t length, loff_t
 	
 	ret = copy_to_user(buffer, buff, len);	
 	
-	for(i=0; i <= 8; i++) {
+	for(i = 0; i <= 8; i++) {
 		matrix = ioread32(bp->base_addr+(4*i));
 		printk(KERN_INFO "matrix[%d]= %u",i ,matrix);
 	}
@@ -194,7 +195,6 @@ ssize_t bram_write(struct file *pfile, const char __user *buffer, size_t length,
   int ret = 0;
   int string_to_int = 0; 
   
-  /*--------------------------------- While variables ----------------------------------*/
   char copy[100];
   int i = 0;
   int j = 0;
@@ -206,10 +206,9 @@ ssize_t bram_write(struct file *pfile, const char __user *buffer, size_t length,
   int arr[50]; 
   int x;
   //int y = 0;
-  int c;
+  int c = 0;
   int a,b,d,e,f;
   ch = matrix_input;
-  /*------------------------------------------------------------------------------------*/
 
   ret = copy_from_user(buff, buffer, length);
   if(ret){
@@ -221,7 +220,7 @@ ssize_t bram_write(struct file *pfile, const char __user *buffer, size_t length,
   sscanf(buff,"%s", matrix_input);
  
   ret = kstrtoint(matrix_input,0,&string_to_int);
-  printk (KERN_INFO "RET: %d\n", ret);
+//  printk (KERN_INFO "RET: %d\n", ret);
   
   if(ret != 0) {	
  
@@ -232,32 +231,35 @@ ssize_t bram_write(struct file *pfile, const char __user *buffer, size_t length,
 	for(i = 0; matrix_input[i]; i++) {
 		x = kstrtoint(copy, 0, &c);
 	
-		if(c > 4096)
-			printk(KERN_ERR "WARNING values beyond 4096 are not permitted\n"); 
+		if(c <= 4096) {
 	
-		if(matrix_input[i]==',') {
+			if(matrix_input[i]==',') {
 
-			arr[j+k] = c;
-			strcpy(copy, "");
-			j++;
-		}
-		else if (matrix_input[i]==';') {
-			arr[j+k] = c;
-			strcpy(copy, "");
-			k++;
+				arr[j+k] = c;
+				strcpy(copy, "");
+				j++;
+			}
+			else if (matrix_input[i]==';') {
+				arr[j+k] = c;
+				strcpy(copy, "");
+				k++;
+			} else {
+				strncat(copy,&matrix_input[i],1);	
+			}
 		} else {
-			strncat(copy,&matrix_input[i],1);	
+			printk(KERN_ERR "WARNING! Only values between 0 and 4096 are allowed. Please input the matrix again with correct values.");
+			return  -1;
 		}
 			
 	}
-	
-	
+
+/*	
 	printk(KERN_INFO "\n\n Here are the values: \n");
 	
 	for(q=0; q < j+k; q++) {
 		printk(KERN_INFO "%d\t",arr[q]);
 	}	
-
+*/
 
 	printk(KERN_INFO "Number of rows: %d\n",k);
 	printk(KERN_INFO "Number of columns: %d\n",(j+k)/k);
@@ -289,7 +291,7 @@ ssize_t bram_write(struct file *pfile, const char __user *buffer, size_t length,
 	return length;
 } 
 
-/*------------------------------ END OF MATRIX PART -----------------------------*/
+/*---------------------------------------- END OF MATRIX PART ----------------------------------------*/
 
 static int __init bram_init(void)
 {
@@ -345,7 +347,7 @@ static void __exit bram_exit(void)
 	device_destroy(my_class, my_dev_id);
 	class_destroy(my_class);
 	unregister_chrdev_region(my_dev_id,1);
-	printk(KERN_INFO "bra removed!\n");
+	printk(KERN_WARNING "bra removed!\n");
 }
 
 module_init(bram_init);
