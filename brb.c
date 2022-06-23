@@ -24,24 +24,24 @@
 
 MODULE_LICENSE("Dual BSD/GPL");
 
-#define DEVICE_NAME "bram_b_b"
-#define DRIVER_NAME "brb_driver"
+#define DEVICE_NAME "bramb"
+#define DRIVER_NAME "bramb_driver"
 #define BUFF_SIZE 100
 
 /*----------------------------------- FUNCTION PROTOTYPES -------------------------------------*/
-static int bram_b_probe(struct platform_device *pdev);
-static int bram_b_remove(struct platform_device *pdev);
+static int bramb_probe(struct platform_device *pdev);
+static int bramb_remove(struct platform_device *pdev);
 
-int bram_b_open(struct inode *pinode, struct file *pfile);
-int bram_b_close(struct inode *pinode, struct file *pfile);
-ssize_t bram_b_read(struct file *pfile, char __user *buffer, size_t length, loff_t *offset);
-ssize_t bram_b_write(struct file *pfile, const char __user *buffer, size_t length, loff_t *offset);
-static int __init bram_b_init(void);
-static void __exit bram_b_exit(void);
+int bramb_open(struct inode *pinode, struct file *pfile);
+int bramb_close(struct inode *pinode, struct file *pfile);
+ssize_t bramb_read(struct file *pfile, char __user *buffer, size_t length, loff_t *offset);
+ssize_t bramb_write(struct file *pfile, const char __user *buffer, size_t length, loff_t *offset);
+static int __init bramb_init(void);
+static void __exit bramb_exit(void);
 
 
 /*------------------------------------- GLOBAL VARIABLES --------------------------------------*/
-struct bram_b_info {
+struct bramb_info {
 	unsigned long mem_start;
 	unsigned long mem_end;
 	void __iomem *base_addr;
@@ -51,40 +51,40 @@ static dev_t my_dev_id;
 static struct class *my_class;
 static struct device *my_device;
 static struct cdev *my_cdev;
-static struct bram_b_info *bp = NULL;
+static struct bramb_info *bp = NULL;
 
 int endRead = 0;
 
 struct file_operations my_fops =
 {
 	.owner = THIS_MODULE,
-	.open = bram_b_open,
-	.read = bram_b_read,
-	.write = bram_b_write,
-	.release = bram_b_close,
+	.open = bramb_open,
+	.read = bramb_read,
+	.write = bramb_write,
+	.release = bramb_close,
 };
 
-static struct of_device_id bram_b_of_match[] =
+static struct of_device_id bramb_of_match[] =
 {
   { .compatible = "bram_gpio",
     .compatible = "xlnx,axi-bram-ctrl-B", },
   { /* end of list */ },
 };
 
-static struct platform_driver bram_b_driver = {
+static struct platform_driver bramb_driver = {
   .driver = {
     .name = DRIVER_NAME,
     .owner = THIS_MODULE,
-    .of_match_table	= bram_b_of_match,
+    .of_match_table	= bramb_of_match,
   },
-  .probe		= bram_b_probe,
-  .remove		= bram_b_remove,
+  .probe		= bramb_probe,
+  .remove		= bramb_remove,
 };
 
-MODULE_DEVICE_TABLE(of, bram_b_of_match);
+MODULE_DEVICE_TABLE(of, bramb_of_match);
 
 /*-------------------------------- PROBE & REMOVE -------------------------------------*/
-static int bram_b_probe(struct platform_device *pdev)
+static int bramb_probe(struct platform_device *pdev)
 {
   struct resource *r_mem;
   int rc = 0;
@@ -98,12 +98,12 @@ static int bram_b_probe(struct platform_device *pdev)
     return -ENODEV;
   }
   // Get memory for structure bra_info
-  bp = (struct bram_b_info *) kmalloc(sizeof(struct bram_b_info), GFP_KERNEL);
+  bp = (struct bramb_info *) kmalloc(sizeof(struct bramb_info), GFP_KERNEL);
   if (!bp) {
     printk(KERN_ALERT "Could not allocate led device!\n");
     return -ENOMEM;
   }
-  // Put physical adresses in bram_b_info structure
+  // Put physical adresses in bramb_info structure
   bp->mem_start = r_mem->start;
   bp->mem_end = r_mem->end;
 
@@ -129,7 +129,7 @@ static int bram_b_probe(struct platform_device *pdev)
   	printk(KERN_ALERT "mem_start != r_mem");
   }
 
-  printk(KERN_WARNING "bram_b platform driver registered.\n");
+  printk(KERN_WARNING "bramb platform driver registered.\n");
   return 0;//ALL OK
 
 error2:
@@ -138,57 +138,79 @@ error1:
   return rc;
 }
 
-static int bram_b_remove(struct platform_device *pdev)
+static int bramb_remove(struct platform_device *pdev)
 {
-  printk(KERN_WARNING "bram_b platform driver removed!\n");
+  printk(KERN_WARNING "bramb platform driver removed!\n");
   iowrite32(0, bp->base_addr);
-  printk(KERN_INFO "bram_b remove in process.");
+  printk(KERN_INFO "bramb remove in process.");
   iounmap(bp->base_addr);
   release_mem_region(bp->mem_start, bp->mem_end - bp->mem_start + 1);
   kfree(bp);
-  printk(KERN_INFO "bram_b driver removed.");
+  printk(KERN_INFO "bramb driver removed.");
   return 0;
 }
 
 /*------------------------------------ FILE OPERATIONS ---------------------------------------*/
 
-int bram_b_open(struct inode *pinode, struct file *pfile)
+int bramb_open(struct inode *pinode, struct file *pfile)
 {
-	printk(KERN_INFO "Succesfully opened bram_b_b.\n");
+	printk(KERN_INFO "Succesfully opened bramb_b.\n");
 	return 0;
 }
 
-int bram_b_close(struct inode *pinode, struct file *pfile)
+int bramb_close(struct inode *pinode, struct file *pfile)
 {
-	printk(KERN_INFO "Succesfully closed bram_b_b.\n");
+	printk(KERN_INFO "Succesfully closed bramb_b.\n");
 	return 0;
 }
-ssize_t bram_b_read(struct file *pfile, char __user *buffer, size_t length, loff_t *offset) 
+ssize_t bramb_read(struct file *pfile, char __user *buffer, size_t length, loff_t *offset) 
 {
-	printk("Succefully read from bram_b_b. \n");
-	return 0;
+	int i;
+	int ret;
+	char buff[BUFF_SIZE];
+        uint32_t matrix;
+	
+	long int len;
+	if (endRead){
+		endRead = 0;
+		printk(KERN_INFO "Succesfully read from file\n");
+		return 0;
+	}
+	
+	ret = copy_to_user(buffer, buff, len);	
+	
+	for(i=0; i <= 8; i++) {
+		matrix = ioread32(bp->base_addr+(4*i));
+		printk(KERN_INFO "matrix[%d]= %u",i ,matrix);
+	}
+
+	endRead = 1;
+	return len;
+
 }
 
-ssize_t bram_b_write(struct file *pfile, const char __user *buffer, size_t length, loff_t *offset) {
+ssize_t bramb_write(struct file *pfile, const char __user *buffer, size_t length, loff_t *offset) {
 
   char buff[BUFF_SIZE];
   int ret = 0;
   int string_to_int = 0; 
-  /*----------------- While variables ---------------*/
+  
+  /*--------------------------------- While variables ----------------------------------*/
   char copy[100];
   int i = 0;
   int j = 0;
+  int k = 0;
   int mat[10][10];
-
+  int q = 0;
   char matrix_input[100];
   char *ch;
-  //int *string_to_ull;
   int arr[50]; 
-  int x = 0;
-  int y = 0;
-  int a,b,c,d,e,f;
+  int x;
+  //int y = 0;
+  int c = 0;
+  int a,b,d,e,f;
   ch = matrix_input;
-  /*-------------------------------------------------*/
+  /*------------------------------------------------------------------------------------*/
 
   ret = copy_from_user(buff, buffer, length);
   if(ret){
@@ -207,82 +229,91 @@ ssize_t bram_b_write(struct file *pfile, const char __user *buffer, size_t lengt
 /*------------------------------ STRING TO ARRAY ---------------------------------*/
  
   printk(KERN_INFO "Matrix input: %s\n", matrix_input); 
-  while(*ch != '\0') {
-//	printk(KERN_INFO "Entered while: %s\n", ch);
 
-	if(*ch == ';'){
-		i++;
-//		printk(KERN_INFO "Incremented i: %d\n", i);
-	} else if (*ch == ',') {
-		j++;
-//		printk(KERN_INFO "Incremented j: %d\n", j);
+	for(i = 0; matrix_input[i]; i++) {
+		x = kstrtoint(copy, 0, &c);
+	
+		if(c <= 4096) {
+		
+			if(matrix_input[i]==',') {
 
-	} else {
-
-		strncat(copy, ch, 2);
-		y = kstrtoint(ch,0,&x);
-		printk(KERN_INFO "CH = %c\n", *ch);
-		arr[i+j] = *ch;
+				arr[j+k] = c;
+				strcpy(copy, "");
+				j++;
+			}
+			else if (matrix_input[i]==';') {
+				arr[j+k] = c;
+				strcpy(copy, "");
+				k++;
+			} else {
+				strncat(copy,&matrix_input[i],1);	
+			}
+		} else {
+			printk(KERN_ERR "WARNING! Only values between 0 and 4096 are allowed. Please input the matrix again with correct values.");
+			return -1;
+		}
+			
 	}
-	ch++;
-  }
+	
+	
+	printk(KERN_INFO "\n\n Here are the values: \n");
+	
+	for(q=0; q < j+k; q++) {
+		printk(KERN_INFO "%d\t",arr[q]);
+	}	
 
-	printk(KERN_INFO "Number string: \n%s\n", copy);
-	printk(KERN_INFO "\nNumber of rows: %d\n",i);
-	printk(KERN_INFO "\nNumber of columns: %d\n",(j+i)/i);
 
+	printk(KERN_INFO "Number of rows: %d\n",k);
+	printk(KERN_INFO "Number of columns: %d\n",(j+k)/k);
 
-	for(c = 0; c < j+i; c++) {
-		printk(KERN_INFO "%d \t",arr[c]);
-	}
-
-	printk(KERN_INFO "\n\n Matrix  \n\n");
+	printk(KERN_INFO "\nMatrix\n");
 
 	d = 0;
-	for(a = 0; a < i; a++) {
-		for(b = 0; b < ((j+i)/i); b++){
-			mat[a][b] = arr[d]-48;
+	for(a = 0; a < k; a++) {
+		for(b = 0; b < ((j+k)/k); b++){
+			mat[a][b] = arr[d];
 			d++;
 		} 
 	}
 
-	for(e = 0; e < i; e++) {
-		for(f = 0; f < ((j+i)/i); f++) {
+	for(e = 0; e < k; e++) {
+		for(f = 0; f < ((j+k)/k); f++) {
 			printk(KERN_INFO "%d\t",mat[e][f]);
-		//	string_to_ull = mat[e][f];
-		//	kstrtoull (string_to_ull, 0, &iwrite);
-			iowrite32((u32)mat[e][f], bp -> base_addr);
-			printk(KERN_INFO "Succesfully wrote value %32u", (u32)mat[e][f]); 
+			if(e == 0) {	
+				iowrite32((u32)mat[e][f], bp -> base_addr+4*f);
+			} else {
+				iowrite32((u32)mat[e][f], bp -> base_addr+((4*(j+k)/k*e)+(4*f)));	
+			}	
+		
 		}
 		printk(KERN_INFO "\n\n");
 	}
 
   }
-
 	return length;
 } 
 
 	
 /*------------------------------ END OF MATRIX PART -----------------------------*/
 
-static int __init bram_b_init(void)
+static int __init bramb_init(void)
 {
 	int ret = 0;
-	ret = alloc_chrdev_region(&my_dev_id, 0, 1, "bra");
+	ret = alloc_chrdev_region(&my_dev_id, 0, 1, "brb");
 	if (ret){
-		printk(KERN_ERR "failed to register char device\n");
+		printk(KERN_ERR "Failed to register char device.\n");
 		return ret;
 	}
 	printk(KERN_INFO "Char device region allocated.\n");
 	
-	my_class = class_create(THIS_MODULE, "bra_class");
+	my_class = class_create(THIS_MODULE, "brb_class");
 	if (my_class == NULL){
 		printk(KERN_ERR "Failed to create class!\n");
 		goto fail_0;
 	}
 	printk(KERN_INFO "Class created.\n");
 	
-	my_device = device_create(my_class, NULL, my_dev_id, NULL, "bra");
+	my_device = device_create(my_class, NULL, my_dev_id, NULL, "brb");
 	if (my_device == NULL){
 		printk(KERN_ERR "Failed to create device!\n");
 		goto fail_1;
@@ -301,7 +332,7 @@ static int __init bram_b_init(void)
 	}
 	printk(KERN_INFO "Cdev added.\n");
 
-	return platform_driver_register(&bram_b_driver);
+	return platform_driver_register(&bramb_driver);
 
 	fail_2:
 		device_destroy(my_class, MKDEV(MAJOR(my_dev_id),0));
@@ -312,15 +343,15 @@ static int __init bram_b_init(void)
 	return -1;
 }
 
-static void __exit bram_b_exit(void)
+static void __exit bramb_exit(void)
 {
-	platform_driver_unregister(&bram_b_driver);
+	platform_driver_unregister(&bramb_driver);
 	cdev_del(my_cdev);
 	device_destroy(my_class, my_dev_id);
 	class_destroy(my_class);
 	unregister_chrdev_region(my_dev_id,1);
-	printk(KERN_INFO "bram_b_b exit.\n");
+	printk(KERN_INFO "Bram_b exit.\n");
 }
 
-module_init(bram_b_init);
-module_exit(bram_b_exit);
+module_init(bramb_init);
+module_exit(bramb_exit);
