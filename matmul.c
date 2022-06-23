@@ -167,8 +167,8 @@ ssize_t matmul_read(struct file *pfile, char __user *buffer, size_t length, loff
 	int ret;
 	char buff[BUFF_SIZE];
         uint32_t m,n,p,ready,start = 0;
-	
 	long int len;
+	
 	if (endRead){
 		endRead = 0;
 		pos = 0;
@@ -192,24 +192,29 @@ ssize_t matmul_read(struct file *pfile, char __user *buffer, size_t length, loff
 ssize_t matmul_write(struct file *pfile, const char __user *buffer, size_t length, loff_t *offset) 
 {
 	
-//	int flag_dim = 0;
 	char buff[BUFF_SIZE];
 	int n, m, p, start;
 	//int ready;
-	int ret;
-		
+	int ret;		
+	uint32_t trig0 = 0;
+	uint32_t trig1 = 1;
+	char trigger[10] = "trigger";
 	ret = copy_from_user(buff, buffer, length);
 	if(ret)
 		return -EFAULT;
 	buff[length-1] = '\0';
 	
-	if(strstr(buff,"start=") != NULL ) {
-		ret = sscanf(buff, "start=%d", &start); //ret = 1
+	if(strstr(buff,"start=trigger") != NULL ) {
+		ret = 1;
+		start = 2;
 	} else if(strstr(buff,"dim=") != NULL) {
 		ret = sscanf(buff,"dim=%d,%d,%d",&n,&m,&p); //ret = 3
+	} else if(strstr(buff, "start=") != NULL) {
+		ret = sscanf(buff, "start=%d", &start);
+		printk(KERN_INFO "RET = %d", ret);
 	}
 
-	if(ret==3) //three parameters parsed in sscanf
+	if(ret == 3) //three parameters parsed in sscanf
 	{  
 		flag_dim = 1;	
 		if(n >= 1 && n <= 7)
@@ -242,16 +247,24 @@ ssize_t matmul_write(struct file *pfile, const char __user *buffer, size_t lengt
 	} else if(ret == 1) {
 		if(flag_dim == 1) {	
 			switch(start) {
-				case 0:
+				case(0):
 					iowrite32((u32)start, mp->base_addr+4);
 					printk(KERN_INFO "Matrix muliplication stopped.");
 					printk(KERN_WARNING "Start -> %d",start);
 					flag_dim = 0;
 					break;
-				case 1:
+				case(1):
 					iowrite32((u32)start, mp->base_addr+4);
 					printk(KERN_INFO "Matrix multiplication started.");
 					printk(KERN_WARNING "Start -> %d",start);
+					break;
+
+				case(2):
+					iowrite32((u32)trig1, mp->base_addr+4);
+					printk(KERN_INFO "Trigger = %u", trig1);
+					iowrite32((u32)trig0, mp->base_addr+4);
+					printk(KERN_INFO "Trigger = %u", trig0);
+					printk(KERN_INFO "start= %d", start);
 					break;
 				default:
 					printk(KERN_ERR "Wrong parameter for Start! (START = 1, STOP = 0)");
@@ -268,8 +281,8 @@ ssize_t matmul_write(struct file *pfile, const char __user *buffer, size_t lengt
 
 static int __init matmul_init ( void )
 {
-	int ret = 0 ;
-	ret = alloc_chrdev_region(&my_dev_id, 0 , 1 , "matmul" );
+	int ret;
+ 	ret = alloc_chrdev_region(&my_dev_id, 0 , 1 , "matmul" );
 	if (ret){
 		printk(KERN_ERR "Failed to register char device!\n" );
 		return ret;
