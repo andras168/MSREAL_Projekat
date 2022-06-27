@@ -102,7 +102,7 @@ int matmul_close(struct inode *pinode, struct file *pfile)
 		return 0;
 }
 
-/*--------------------------- PROBE & REMOVE --------------------------------------*/
+/*______________________________< PROBE & REMOVE >________________________________*/
 
 static int matmul_probe(struct platform_device *pdev)
 {
@@ -144,9 +144,9 @@ static int matmul_probe(struct platform_device *pdev)
   }
 
   if(mp->mem_start == r_mem->start) {
-  	printk(KERN_NOTICE "mem_start == r_mem");
+  	printk(KERN_INFO "mem_start == r_mem");
   } else {
-  	printk(KERN_NOTICE "mem_start != r_mem");
+  	printk(KERN_ERR "mem_start != r_mem");
   }
 
   printk(KERN_WARNING "Matmul platform driver registered.\n");
@@ -327,11 +327,11 @@ static int __init matmul_init ( void )
 	
 	if (ret)
 	{
-		printk(KERN_ERR "failed to add cdev\n" );
+		printk(KERN_ERR "Failed to add cdev!\n" );
 		goto fail_2;
 	}
 	
-	printk(KERN_INFO "Cdev added\n" );
+	printk(KERN_INFO "Cdev added.\n" );
 	//printk(KERN_INFO "Hello world\n" );
 
         timer_setup(&simple_timer,simple_timer_function,0);
@@ -358,7 +358,7 @@ static void __exit matmul_exit ( void )
 	class_destroy(my_class);
 	unregister_chrdev_region(my_dev_id, 1 );
 	del_timer(&simple_timer);
-	printk(KERN_INFO "Matmul exit.\n" );
+	printk(KERN_WARNING "MATMUL removed!\n" );
 }
 
 module_init(matmul_init);
