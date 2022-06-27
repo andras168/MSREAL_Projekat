@@ -24,7 +24,7 @@
 
 MODULE_LICENSE("Dual BSD/GPL");
 
-#define DEVICE_NAME "bram_a"
+#define DEVICE_NAME "BRAM_A"
 #define DRIVER_NAME "bram_driver"
 #define BUFF_SIZE 100
 
@@ -125,12 +125,12 @@ static int bram_probe(struct platform_device *pdev)
   }
 
   if(bp->mem_start == r_mem->start) {
-  	printk(KERN_ALERT "mem_start == r_mem");
+  	printk(KERN_INFO "mem_start == r_mem");
   } else {
-  	printk(KERN_ALERT "mem_start != r_mem");
+  	printk(KERN_ERR "mem_start != r_mem");
   }
 
-  printk(KERN_WARNING "Bram platform driver registered.\n");
+  printk(KERN_WARNING "BRAM_A platform driver registered.\n");
   return 0;//ALL OK
 
 error2:
@@ -141,13 +141,13 @@ error1:
 
 static int bram_remove(struct platform_device *pdev)
 {
-  printk(KERN_WARNING "Bram platform driver removed!\n");
+  printk(KERN_WARNING "BRAM_A platform driver removed!\n");
   iowrite32(0, bp->base_addr);
-  printk(KERN_INFO "Bram remove in process.");
+  printk(KERN_INFO "BRAM_A remove in process.");
   iounmap(bp->base_addr);
   release_mem_region(bp->mem_start, bp->mem_end - bp->mem_start + 1);
   kfree(bp);
-  printk(KERN_INFO "Bram driver removed.");
+  printk(KERN_INFO "BRAM_A driver removed.");
   return 0;
 }
 
@@ -155,13 +155,13 @@ static int bram_remove(struct platform_device *pdev)
 
 int bram_open(struct inode *pinode, struct file *pfile)
 {
-	printk(KERN_INFO "Succesfully opened bram_a.\n");
+	printk(KERN_INFO "Succesfully opened BRAM_A.\n");
 	return 0;
 }
 
 int bram_close(struct inode *pinode, struct file *pfile)
 {
-	printk(KERN_INFO "Succesfully closed bram_a.\n");
+	printk(KERN_INFO "Succesfully closed BRAM_A.\n");
 	return 0;
 }
 ssize_t bram_read(struct file *pfile, char __user *buffer, size_t length, loff_t *offset) 
@@ -174,7 +174,7 @@ ssize_t bram_read(struct file *pfile, char __user *buffer, size_t length, loff_t
 	long int len;
 	if (endRead){
 		endRead = 0;
-		printk(KERN_INFO "Succesfully read from file\n");
+		printk(KERN_INFO "Succesfully read from file.\n");
 		return 0;
 	}
 	
@@ -194,7 +194,10 @@ ssize_t bram_write(struct file *pfile, const char __user *buffer, size_t length,
   char buff[BUFF_SIZE];
   int ret = 0;
   int string_to_int = 0; 
-  
+  int row;
+  int column;
+  int total_elements;
+  int total_elements_count;
   char copy[100];
   int i = 0;
   int j = 0;
@@ -205,7 +208,6 @@ ssize_t bram_write(struct file *pfile, const char __user *buffer, size_t length,
   char *ch;
   int arr[50]; 
   int x;
-  //int y = 0;
   int c = 0;
   int a,b,d,e,f;
   ch = matrix_input;
@@ -224,14 +226,14 @@ ssize_t bram_write(struct file *pfile, const char __user *buffer, size_t length,
   
   if(ret != 0) {	
  
-/*------------------------------ STRING TO ARRAY ---------------------------------*/
+/*_______________________________________< STRING TO ARRAY >_______________________________________*/
  
   printk(KERN_INFO "Matrix input: %s\n", matrix_input); 
 
 	for(i = 0; matrix_input[i]; i++) {
 		x = kstrtoint(copy, 0, &c);
 	
-		if(c <= 4096) {
+		if(c <= 4096) { //Restricting the range of values
 	
 			if(matrix_input[i]==',') {
 
@@ -253,38 +255,48 @@ ssize_t bram_write(struct file *pfile, const char __user *buffer, size_t length,
 			
 	}
 
-/*	
-	printk(KERN_INFO "\n\n Here are the values: \n");
+
+//	printk(KERN_INFO "\n\n Here are the values: \n");
 	
 	for(q=0; q < j+k; q++) {
-		printk(KERN_INFO "%d\t",arr[q]);
+//		printk(KERN_INFO "%d\t",arr[q]);
+		total_elements_count++;
 	}	
-*/
+
 
 	printk(KERN_INFO "Number of rows: %d\n",k);
 	printk(KERN_INFO "Number of columns: %d\n",(j+k)/k);
+	
+	row = k;
+	column = (j+k)/k;
+	total_elements = row * column;
+	printk(KERN_WARNING "Total elements = %d\n", total_elements);	
 
-	printk(KERN_INFO "\nMatrix\n");
-
-	d = 0;
-	for(a = 0; a < k; a++) {
-		for(b = 0; b < ((j+k)/k); b++){
-			mat[a][b] = arr[d];
-			d++;
-		} 
-	}
-
-	for(e = 0; e < k; e++) {
-		for(f = 0; f < ((j+k)/k); f++) {
-			printk(KERN_INFO "%d\t",mat[e][f]);
-			if(e == 0) {	
-				iowrite32((u32)mat[e][f], bp -> base_addr+4*f);
-			} else {
-				iowrite32((u32)mat[e][f], bp -> base_addr+((4*(j+k)/k*e)+(4*f)));	
-			}	
-		
+	printk(KERN_WARNING "\nMatrix\n");
+	if(total_elements == total_elements_count) { //Checking if the all the matrix elements are correct.
+		d = 0;
+		for(a = 0; a < k; a++) {
+			for(b = 0; b < ((j+k)/k); b++){
+				mat[a][b] = arr[d];
+				d++;
+			} 
 		}
-		printk(KERN_INFO "\n\n");
+
+		for(e = 0; e < k; e++) {
+			for(f = 0; f < ((j+k)/k); f++) {
+				printk(KERN_INFO "%d\t",mat[e][f]);
+				if(e == 0) {	
+					iowrite32((u32)mat[e][f], bp -> base_addr+4*f);
+				} else {
+					iowrite32((u32)mat[e][f], bp -> base_addr+((4*(j+k)/k*e)+(4*f)));	
+				}	
+			
+			}
+			printk(KERN_INFO "\n\n");
+		}
+	} else {
+		printk(KERN_ERR "Elements are missing from matrix, please define it again with correct element count!");
+		return -1;
 	}
 
   }
@@ -347,7 +359,7 @@ static void __exit bram_exit(void)
 	device_destroy(my_class, my_dev_id);
 	class_destroy(my_class);
 	unregister_chrdev_region(my_dev_id,1);
-	printk(KERN_WARNING "bra removed!\n");
+	printk(KERN_WARNING "BRAM_A removed!\n");
 }
 
 module_init(bram_init);
